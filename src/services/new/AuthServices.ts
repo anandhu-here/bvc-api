@@ -80,23 +80,38 @@ class AuthService {
     return bcrypt.compare(plainPassword, hashedPassword);
   }
 
-  async generateToken(userId: string) {
+  async generateToken(userId: string): Promise<string> {
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+      Logger.error("JWT_SECRET is not defined in environment variables");
+      throw new Error("JWT_SECRET is not defined");
+    }
+
+    if (secret.length < 32) {
+      Logger.error(
+        "JWT_SECRET is too short - it should be at least 32 characters"
+      );
+      throw new Error("JWT_SECRET is not secure enough");
+    }
+
     try {
-      const secret = process.env.JWT_SECRET;
-      if (!secret) {
-        Logger.error("JWT_SECRET is not defined in environment variables");
-        throw new Error("JWT_SECRET is not defined");
-      }
-      Logger.info(`Generating token for user: ${userId}`);
-      Logger.info(`JWT_SECRET length: ${secret.length}`);
       const token = jwt.sign({ userId }, secret, {
         expiresIn: "1d",
+        algorithm: "HS256", // explicitly specify the algorithm
       });
-      Logger.info(`Generated token length: ${token.length}`);
+
+      Logger.info(`Token generated successfully for user: ${userId}`);
       return token;
     } catch (error) {
-      Logger.error("Error in generateToken service:", error);
-      throw error;
+      // Proper error handling
+      if (error instanceof Error) {
+        Logger.error(`JWT generation failed: ${error.message}`);
+        throw new Error("Failed to generate authentication token");
+      } else {
+        Logger.error("Unknown error during token generation");
+        throw new Error("Unknown error during authentication");
+      }
     }
   }
 

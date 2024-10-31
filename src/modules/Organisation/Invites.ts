@@ -103,7 +103,16 @@ class InviteController {
   async acceptInvitation(req: Request, res: Response) {
     try {
       const { token } = req.params;
+      const orgId = req.currentOrganization?._id;
+
       const userId = req.user?._id; // Assuming you have user info in request
+
+      if (!orgId) {
+        return res.status(400).json({
+          success: false,
+          message: "You are not a part of any organization",
+        });
+      }
 
       if (!token || !userId) {
         return res.status(400).json({
@@ -114,7 +123,8 @@ class InviteController {
 
       const invitation = await this.inviteService.acceptInvitation(
         token,
-        userId.toString()
+        userId.toString(),
+        orgId.toString()
       );
 
       res.json({

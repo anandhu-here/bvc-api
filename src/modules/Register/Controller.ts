@@ -13,6 +13,7 @@ import { getEmailVerificationTemplate } from "../email/templates/verify-email";
 import EmailServices from "src/services/EmailService";
 import { getPasswordResetTemplate } from "../email/templates/reset-pass";
 import { FCMToken } from "src/models/new/FCM";
+import jwt from "jsonwebtoken";
 class UserController {
   private authService: AuthService;
   private joinRequestService: JoinRequestServices;
@@ -491,6 +492,45 @@ class UserController {
     }
   };
 
+  async generateToken(userId: string): Promise<string> {
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+      Logger.error("JWT_SECRET is not defined in environment variables");
+      throw new Error("JWT_SECRET is not defined");
+    }
+
+    if (secret.length < 32) {
+      Logger.error(
+        "JWT_SECRET is too short - it should be at least 32 characters"
+      );
+      throw new Error("JWT_SECRET is not secure enough");
+    }
+
+    try {
+      const token = jwt.sign({ userId }, secret, {
+        expiresIn: "1d",
+        algorithm: "HS256",
+      });
+
+      if (!token) {
+        throw new Error("Token generation failed");
+      }
+
+      Logger.info(`Token generated successfully for user: ${userId}`);
+      return token;
+    } catch (error) {
+      // Simpler error handling without instanceof
+      const errorMessage =
+        error && typeof error === "object" && "message" in error
+          ? error.message
+          : "Unknown error";
+
+      Logger.error(`JWT generation failed: ${errorMessage}`);
+      throw new Error("Failed to generate authentication token");
+    }
+  }
+
   public login = async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
@@ -503,33 +543,44 @@ class UserController {
       }
 
       const user = await this.authService.findUserByEmail(email);
-      if (!user) {
+
+      if (
+        !user ||
+        !(await this.authService.verifyPassword(password, user.password))
+      ) {
         res
           .status(StatusCodes.UNAUTHORIZED)
           .json({ error: "Invalid credentials" });
         return;
       }
 
-      const isPasswordValid = await this.authService.verifyPassword(
-        password,
-        user.password
-      );
-      if (!isPasswordValid) {
-        res
-          .status(StatusCodes.UNAUTHORIZED)
-          .json({ error: "Invalid credentials" });
-        return;
-      }
-
-      const token = await this.authService.generateToken(user._id.toString());
+      const token = await this.generateToken(user._id.toString());
 
       res.status(StatusCodes.OK).json({
         message: "Login successful",
-        user: { id: user._id, email: user.email, role: user.role },
+        user: {
+          id: user._id,
+          email: user.email,
+          role: user.role,
+        },
         token,
       });
-    } catch (error: any) {
-      Logger.error("Login error:", error);
+    } catch (error) {
+      // Simpler error handling
+      const errorMessage =
+        error && typeof error === "object" && "message" in error
+          ? error.message
+          : "Unknown error";
+
+      Logger.error(`Login error: ${errorMessage}`);
+
+      if (errorMessage === "JWT_SECRET is not secure enough") {
+        res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .json({ error: "Server configuration error" });
+        return;
+      }
+
       res
         .status(StatusCodes.INTERNAL_SERVER_ERROR)
         .json({ error: "An error occurred during login" });

@@ -1,17 +1,21 @@
 import EmailServices from "./EmailService";
 import Logger from "../logger";
 import crypto from "crypto";
-import { Organization } from "src/models/new/Heirarchy";
+import { Organization, User } from "src/models/new/Heirarchy";
 import OrganizationInvitation from "src/models/Invites";
 import OrganizationInvitations from "src/models/Invites";
 import mongoose from "mongoose";
 import { getOrgInvitationTemplate } from "src/modules/email/templates/getOrgInvite";
+import OrganizationServices from "./OrgServices";
+import { getJoinRequestAcceptedTemplate } from "src/modules/email/templates/acceptedJoinRequest";
 
 class InviteServices {
   private mailSvc: EmailServices;
+  private orgServices: OrganizationServices;
 
   constructor() {
     this.mailSvc = new EmailServices();
+    this.orgServices = new OrganizationServices();
   }
 
   private generateInvitationToken(email: string, orgId: string): string {
@@ -59,7 +63,7 @@ class InviteServices {
   }
 
   private async sendInvitationEmail(invitation: any, organization: any) {
-    const inviteLink = `${process.env.FRONTEND_URL}/join-organization?token=${invitation.token}`;
+    const inviteLink = `${process.env.FRONTEND_URL}/join-organization?orgInvitationToken=${invitation.token}`;
     const logoUrl =
       "https://firebasestorage.googleapis.com/v0/b/wyecare-frontend.appspot.com/o/wyecare-logo-dark.png?alt=media&token=c83fb0b1-a841-4c22-a089-9185581eeef6";
 
@@ -90,20 +94,36 @@ class InviteServices {
     return invitation;
   }
 
-  async acceptInvitation(token: string, userId: string) {
+  async acceptInvitation(token: string, userId: string, orgId: string) {
     const invitation = await this.validateInvitationToken(token);
-
+    const invitedUser = await User.findById(invitation.invitedBy).lean();
     // Update invitation status
     invitation.status = "accepted";
     invitation.acceptedBy = new mongoose.Types.ObjectId(userId);
     invitation.acceptedAt = new Date();
     await invitation.save();
 
-    // Link organizations
-    await Organization.findByIdAndUpdate(invitation.organization, {
-      $addToSet: { linkedOrganizations: userId },
-    });
+    const fromOrg = await Organization.findById(invitation.organization);
+    const toOrg = await Organization.findById(orgId);
 
+    if (!fromOrg || !toOrg) {
+      throw new Error("Invalid organization");
+    }
+
+    await this.orgServices.linkOrganizations(
+      fromOrg._id.toString(),
+      toOrg._id.toString()
+    );
+    const emailHtml = getJoinRequestAcceptedTemplate(
+      invitedUser.firstName,
+      toOrg.name,
+      `${process.env.FRONTEND_URL}`
+    );
+    await this.mailSvc.sendEmail({
+      to: invitedUser.email,
+      subject: "Join Request Accepted",
+      html: emailHtml,
+    });
     return invitation;
   }
 

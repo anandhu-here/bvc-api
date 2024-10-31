@@ -2,7 +2,7 @@ export const getJoinRequestAcceptedTemplate = (
   userName: string,
   companyName: string,
   redirectLink: string,
-  logoUrl: string
+  logoUrl?: string
 ) => {
   return `<!DOCTYPE html>
     <html>
@@ -48,9 +48,7 @@ export const getJoinRequestAcceptedTemplate = (
     </head>
     <body>
       <div class="container">
-        <div class="logo">
-          <img src="${logoUrl}" alt="${companyName} Logo">
-        </div>
+        
         <h2>Join Request Accepted</h2>
         <p>Dear ${userName},</p>
         <p>We are pleased to inform you that your request to join <strong>${companyName}</strong> has been accepted!</p>
@@ -61,10 +59,6 @@ export const getJoinRequestAcceptedTemplate = (
             Go to Organization
           </a>
         </p>
-        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-        <p>Welcome aboard!</p>
-        <p>Best regards,</p>
-        <p>${companyName} Team</p>
       </div>
     </body>
     </html>`;

@@ -2,7 +2,7 @@
 FROM oven/bun:latest
 
 # Install Nginx, OpenSSL, and Redis
-RUN apt-get update && apt-get install -y unzip redis-server
+RUN apt-get update && apt-get install -y unzip 
 
 # Ensure we have the latest version of Bun
 RUN bun upgrade
@@ -23,4 +23,4 @@ RUN bun run build
 EXPOSE 4000 6379
 
 # Start Redis and the Bun app
-CMD redis-server --daemonize yes && bun run start
+CMD bun run start
