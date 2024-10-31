@@ -1,0 +1,14 @@
+- .github
+  - workflows
+    - docker-image.yml
+- app
+  - .dockerignore
+  - .env.development
+  - .gitignore
+  - Dockerfile
+  
+- docker-compose.yml
+- nginx
+  - default.conf
+  - Dockerfile
+- README.md

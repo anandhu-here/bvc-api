@@ -1,0 +1,57 @@
+9# Node.js
+node_modules/
+/client
+/frontend/node_modules
+
+npm-debug.log
+yarn-error.log
+
+*.json
+
+http/
+tools/
+
+
+# Build output
+dist/
+build/
+
+# docker
+# Docker
+
+# docker-compose.yml
+# .dockerignore
+wyecare-sdk.json
+*.tar
+
+
+
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.*
+.env.development
+# Logs
+logs/
+*.log
+
+# Dependency lock files
+
+yarn.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+
+# Testing
+coverage/
+
+# Miscellaneous
+.DS_Store
+Thumbs.db
+.vercel
