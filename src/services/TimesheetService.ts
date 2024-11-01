@@ -167,69 +167,225 @@ class TimesheetService {
     userId: string,
     orgType?: string,
     orgId?: string,
+    organizationIdQuery?: string,
     pagination?: { page: number; limit: number },
     status?: "all" | "approved" | "pending" | "rejected",
-    startDate?: Date,
-    endDate?: Date
+    startDate?: string, // YYYY-MM-DD format
+    endDate?: string // YYYY-MM-DD format
   ): Promise<PaginatedResponse<ITimesheet>> => {
     try {
-      // Initialize base query object
-      let query: Record<string, any> = {};
+      let matchStage: Record<string, any> = {};
 
       // Add status filter if not 'all'
       if (status && status !== "all") {
-        query.status = status;
-      }
-
-      if (startDate && endDate) {
-        query.createdAt = {
-          $gte: startDate,
-          $lte: endDate,
-        };
+        matchStage.status = status;
       }
 
       // Add role-based filters
       switch (accountType) {
         case "admin":
           if (orgType === "agency") {
-            query.agency = new Types.ObjectId(orgId);
+            matchStage.agency = new Types.ObjectId(orgId);
+            if (organizationIdQuery) {
+              matchStage.home = new Types.ObjectId(organizationIdQuery);
+            }
           } else if (orgType === "home") {
-            query.home = new Types.ObjectId(orgId);
+            matchStage.home = new Types.ObjectId(orgId);
           }
           break;
 
         case "care":
-          query[orgType === "agency" ? "agency" : "home"] = new Types.ObjectId(
-            orgId
-          );
-          query.carer = new Types.ObjectId(userId);
+          matchStage[orgType === "agency" ? "agency" : "home"] =
+            new Types.ObjectId(orgId);
+          matchStage.carer = new Types.ObjectId(userId);
           break;
 
         default: // carer
-          query.carer = new Types.ObjectId(userId);
+          matchStage.carer = new Types.ObjectId(userId);
       }
 
-      // Set populate options based on account type
-      const populateOptions =
-        accountType === "care"
-          ? this.carerPopulateOptions
-          : this.defaultPopulateOptions;
-
-      // Pagination setup
+      // Calculate pagination values
       const page = pagination?.page || 1;
       const limit = pagination?.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Execute queries in parallel
-      const [total, timesheets] = await Promise.all([
-        TimesheetModel.countDocuments(query),
-        TimesheetModel.find(query)
-          .populate(populateOptions)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-      ]);
+      // Build the initial pipeline
+      const pipeline = [
+        {
+          $match: matchStage,
+        },
+        // Lookup shift details
+        {
+          $lookup: {
+            from: "shifts",
+            localField: "shift_",
+            foreignField: "_id",
+            as: "shift",
+          },
+        },
+        {
+          $unwind: "$shift",
+        },
+      ];
+
+      // Add date range filter if dates are provided
+      if (startDate && endDate) {
+        pipeline.push({
+          $match: {
+            "shift.date": {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        });
+      }
+
+      // Complete the pipeline with detailed lookups
+      const fullPipeline = [
+        ...pipeline,
+        // Lookup shift pattern details
+        {
+          $lookup: {
+            from: "shiftpatterns",
+            localField: "shift.shiftPattern",
+            foreignField: "_id",
+            as: "shiftPattern",
+          },
+        },
+        {
+          $unwind: {
+            path: "$shiftPattern",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup carer details
+        {
+          $lookup: {
+            from: "users",
+            localField: "carer",
+            foreignField: "_id",
+            as: "carerDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$carerDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup home details
+        {
+          $lookup: {
+            from: "organizations",
+            localField: "home",
+            foreignField: "_id",
+            as: "homeDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$homeDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup agency details
+        {
+          $lookup: {
+            from: "organizations",
+            localField: "agency",
+            foreignField: "_id",
+            as: "agencyDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$agencyDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Lookup approvedBy details
+        {
+          $lookup: {
+            from: "users",
+            localField: "approvedBy",
+            foreignField: "_id",
+            as: "approvedByDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$approvedByDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+              { $sort: { "shift.date": -1 } },
+              { $skip: skip }, // Fixed skip calculation
+              { $limit: limit },
+              {
+                $project: {
+                  _id: 1,
+                  status: 1,
+                  rating: 1,
+                  review: 1,
+                  requestType: 1,
+                  documentUrl: 1,
+                  tokenForQrCode: 1,
+                  createdAt: 1,
+                  updatedAt: 1,
+                  // Projected shift details
+                  shift_: {
+                    _id: "$shift._id",
+                    date: "$shift.date",
+                    homeId: "$shift.homeId",
+                    shiftPattern: {
+                      _id: "$shiftPattern._id",
+                      name: "$shiftPattern.name",
+                      timings: "$shiftPattern.timings",
+                      ...(accountType !== "care" && {
+                        userTypeRates: "$shiftPattern.userTypeRates",
+                        rates: "$shiftPattern.rates",
+                      }),
+                    },
+                  },
+                  // Projected carer details
+                  carer: {
+                    _id: "$carerDetails._id",
+                    firstName: "$carerDetails.firstName",
+                    lastName: "$carerDetails.lastName",
+                    role: "$carerDetails.role",
+                    "avatar.url": "$carerDetails.avatar.url",
+                  },
+                  // Projected home details
+                  home: {
+                    _id: "$homeDetails._id",
+                    name: "$homeDetails.name",
+                  },
+                  // Projected agency details
+                  agency: {
+                    _id: "$agencyDetails._id",
+                    name: "$agencyDetails.name",
+                  },
+                  // Projected approvedBy details
+                  approvedBy: {
+                    firstName: "$approvedByDetails.firstName",
+                    lastName: "$approvedByDetails.lastName",
+                    role: "$approvedByDetails.role",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const [result] = await TimesheetModel.aggregate(fullPipeline as any);
+
+      const total = result.metadata[0]?.total || 0;
+      const timesheets = result.data;
 
       return {
         data: timesheets,

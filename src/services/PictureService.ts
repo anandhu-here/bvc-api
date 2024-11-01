@@ -1,6 +1,6 @@
 import admin from "firebase-admin";
 import { UploadedFile } from "express-fileupload";
-import { IUser, User } from "src/models/new/Heirarchy";
+import { IUser, Organization, User } from "src/models/new/Heirarchy";
 
 class ProfilePictureService {
   private bucket: string;

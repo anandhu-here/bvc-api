@@ -28,6 +28,7 @@ import VisibilityRouter from "src/modules/Application/Router";
 import PermissionRoute from "src/modules/Permissions/Route";
 import FCMRouter from "src/modules/Notifications/Route";
 import NotificationRouter from "src/modules/Notifications/HistoricRoute";
+import AnalyticsRouter from "src/modules/Analytics/Route";
 
 class Routes {
   /**
@@ -64,6 +65,7 @@ class Routes {
     _express.use(`/${apiPrefix}/permissions`, PermissionRoute);
     _express.use(`/${apiPrefix}/fcm`, FCMRouter);
     _express.use(`/${apiPrefix}/notifications`, NotificationRouter);
+    _express.use(`/${apiPrefix}/analytics`, AnalyticsRouter);
     // _express.use(`/${apiPrefix}/job`, JobRouter);
 
     return _express;

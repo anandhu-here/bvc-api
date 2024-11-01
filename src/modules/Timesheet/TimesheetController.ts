@@ -157,6 +157,7 @@ class TimesheetController {
       const { role: accountType, _id } = req.user;
       const orgType = req.currentOrganization?.type;
       const orgId = req.currentOrganization?._id.toString();
+      const organizationId = req.query.organizationId;
 
       // Get pagination parameters from query
       const page = parseInt(req.query.page as string) || 1;
@@ -165,19 +166,21 @@ class TimesheetController {
         (req.query.status as "all" | "approved" | "pending" | "rejected") ||
         "all";
 
-      let startDate = dayjs().startOf("month").toDate();
-      let endDate = dayjs().endOf("month").toDate();
+      let startDate = dayjs().startOf("month").format("YYYY-MM-DD");
+      let endDate = dayjs().endOf("month").format("YYYY-MM-DD");
 
       if (req.query.startDate && req.query.endDate) {
-        startDate = dayjs(req.query.startDate as string).toDate();
-        endDate = dayjs(req.query.endDate as string).toDate();
+        startDate = dayjs(req.query.startDate as string).format("YYYY-MM-DD");
+        endDate = dayjs(req.query.endDate as string).format("YYYY-MM-DD");
       }
+      console.log(startDate, endDate, "andi");
 
       const result = await this.timesheetService.getTimesheetsByRole(
         req.staffType,
         _id.toString(),
         orgType,
         orgId,
+        organizationId as string,
         { page, limit },
         status,
         startDate,

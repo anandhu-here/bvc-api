@@ -1,7 +1,11 @@
+import dayjs from "dayjs";
+import StatusCodes from "src/constants/statusCodes";
+import StringValues from "src/constants/strings";
 import {
   IRequest as Request,
   IResponse as Response,
 } from "src/interfaces/core/new";
+import Logger from "src/logger";
 import StaffService from "src/services/StaffServices";
 
 class StaffController {
@@ -29,6 +33,115 @@ class StaffController {
       res.json({ message: "Staff removed successfully" });
     } catch (error: any) {
       res.status(500).json({ message: "Error removing staff", error });
+    }
+  };
+
+  public getAvailableStaffForShift = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { shiftPatternId, shiftDate, careHomeId } = req.query;
+      const organizationId = req.currentOrganization?._id?.toString();
+
+      if (!organizationId || !shiftPatternId || !shiftDate || !careHomeId) {
+        res.status(StatusCodes.BAD_REQUEST).json({
+          message:
+            "Missing required parameters: shiftPatternId, shiftDate, or careHomeId",
+        });
+        return;
+      }
+
+      const availableStaff = await this.staffSvc.getAvailableStaffForShift(
+        organizationId,
+        shiftPatternId as string,
+        shiftDate as string,
+        careHomeId as string
+      );
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: availableStaff,
+        meta: {
+          total: availableStaff.length,
+          availableCount: availableStaff.filter(
+            (staff) => staff.availability.isAvailable
+          ).length,
+        },
+      });
+    } catch (error: any) {
+      Logger.error("Error getting available staff:", error);
+      res.status(error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: error.message || StringValues.INTERNAL_SERVER_ERROR,
+      });
+    }
+  };
+
+  /**
+   * Get staff availability for a date range
+   * @route GET /api/v1/shifts/staff-availability
+   */
+  public getStaffAvailabilityForDateRange = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { startDate, endDate } = req.query;
+      const organizationId = req.currentOrganization?._id?.toString();
+
+      if (!organizationId || !startDate || !endDate) {
+        res.status(StatusCodes.BAD_REQUEST).json({
+          message: "Missing required parameters: startDate or endDate",
+        });
+        return;
+      }
+
+      // Validate date format
+      if (
+        !dayjs(startDate as string).isValid() ||
+        !dayjs(endDate as string).isValid()
+      ) {
+        res.status(StatusCodes.BAD_REQUEST).json({
+          message: "Invalid date format. Please use YYYY-MM-DD format",
+        });
+        return;
+      }
+
+      // Validate date range
+      if (dayjs(endDate as string).isBefore(dayjs(startDate as string))) {
+        res.status(StatusCodes.BAD_REQUEST).json({
+          message: "End date cannot be before start date",
+        });
+        return;
+      }
+
+      const availabilityMap =
+        await this.staffSvc.getStaffAvailabilityForDateRange(
+          organizationId,
+          startDate as string,
+          endDate as string
+        );
+
+      res.status(StatusCodes.OK).json({
+        success: true,
+        data: availabilityMap,
+        meta: {
+          dateRange: {
+            startDate,
+            endDate,
+            totalDays:
+              dayjs(endDate as string).diff(dayjs(startDate as string), "day") +
+              1,
+          },
+        },
+      });
+    } catch (error: any) {
+      Logger.error("Error getting staff availability:", error);
+      res.status(error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: error.message || StringValues.INTERNAL_SERVER_ERROR,
+      });
     }
   };
 

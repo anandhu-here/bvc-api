@@ -68,4 +68,28 @@ StaffRouter.route("/role/:role").get(
   staffController.getStaffByRole
 );
 
+/**
+ * @route GET /api/v1/shifts/available-staff
+ * @desc Get available staff for a specific shift
+ * @access Private
+ */
+StaffRouter.get(
+  "/available-staff",
+  AuthMiddleware.authenticateToken,
+  AuthMiddleware.authorizePermission(Permission.VIEW_STAFF),
+  staffController.getAvailableStaffForShift
+);
+
+/**
+ * @route GET /api/v1/shifts/staff-availability
+ * @desc Get staff availability for a date range
+ * @access Private
+ */
+StaffRouter.get(
+  "/staff-availability",
+  AuthMiddleware.authenticateToken,
+  AuthMiddleware.authorizePermission(Permission.VIEW_STAFF),
+  staffController.getStaffAvailabilityForDateRange
+);
+
 export default StaffRouter;
