@@ -61,10 +61,10 @@ class StaffController {
 
       res.status(StatusCodes.OK).json({
         success: true,
-        data: availableStaff,
+        data: availableStaff.data,
         meta: {
-          total: availableStaff.length,
-          availableCount: availableStaff.filter(
+          total: availableStaff.data.length,
+          availableCount: availableStaff.data.filter(
             (staff) => staff.availability.isAvailable
           ).length,
         },
