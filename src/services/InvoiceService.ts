@@ -55,6 +55,7 @@ class InvoiceService {
     invoiceId: string
   ): Promise<void> {
     try {
+      console.log("timesheetIds", timesheetIds);
       await TimesheetModel.updateMany(
         { _id: { $in: timesheetIds.map((id) => new Types.ObjectId(id)) } },
         {
@@ -88,8 +89,7 @@ class InvoiceService {
   }
 
   public async createInvoice(params: CreateInvoiceParams): Promise<any> {
-    const session = await Invoice.startSession();
-    session.startTransaction();
+    console.log("params", params);
 
     try {
       const {
@@ -116,7 +116,11 @@ class InvoiceService {
         createdAt: new Date(),
       });
 
-      await invoice.save({ session });
+      console.log("invoice", invoice);
+
+      await invoice.save();
+
+      console.log("timesheets", timesheets.length);
 
       // Update timesheet statuses
       await this.updateTimesheetsStatus(
@@ -124,8 +128,6 @@ class InvoiceService {
         "pending_invoice",
         invoice._id.toString()
       );
-
-      await session.commitTransaction();
 
       // Return populated invoice
       const populatedInvoice = await Invoice.findById(invoice._id)
@@ -135,11 +137,8 @@ class InvoiceService {
 
       return populatedInvoice;
     } catch (error) {
-      await session.abortTransaction();
       Logger.error("Error creating invoice:", error);
       throw error;
-    } finally {
-      session.endSession();
     }
   }
 

@@ -54,27 +54,9 @@ const invoiceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["draft", "sent", "paid", "overdue", "accepted", "rejected"],
+    enum: ["draft", "pending", "sent", "paid", "cancelled", "partially_paid"],
     default: "draft",
   },
-});
-
-// Auto-generate invoice number before saving
-invoiceSchema.pre("save", async function (next) {
-  if (this.isNew) {
-    const latestInvoice = await this.constructor.findOne(
-      {},
-      {},
-      { sort: { invoiceNumber: -1 } }
-    );
-    const latestNumber = latestInvoice
-      ? parseInt(latestInvoice.invoiceNumber.split("-")[1])
-      : 0;
-    this.invoiceNumber = `INV-${(latestNumber + 1)
-      .toString()
-      .padStart(6, "0")}`;
-  }
-  next();
 });
 
 const Invoice = mongoose.model("Invoice", invoiceSchema);
