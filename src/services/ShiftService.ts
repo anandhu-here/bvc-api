@@ -1786,7 +1786,9 @@ class ShiftService {
 
   public async getAssignmentsForUser(userId: string): Promise<any[]> {
     try {
-      console.log("andiiiiiiii");
+      Logger.info(`Getting assignments for user: ${userId}`);
+
+      // Step 1: Get assignments with populated shift data
       const assignments = await ShiftAssignmentModel.find({
         user: userId,
         shift: { $exists: true, $ne: null },
@@ -1802,29 +1804,53 @@ class ShiftService {
         .lean()
         .exec();
 
-      if (assignments.length === 0) {
+      if (!assignments || assignments.length === 0) {
+        Logger.info(`No assignments found for user: ${userId}`);
         return [];
       }
 
-      // Step 2: Fetch timesheets for all assignments in a single query
-      const shiftIds = assignments.map((assignment) => assignment?.shift?._id);
-      const timesheets = await TimesheetModel.find({
-        shift_: { $in: shiftIds },
-        carer: userId,
-      }).lean();
+      // Step 2: Safely extract shift IDs, filtering out any null or undefined values
+      const shiftIds = assignments
+        .filter((assignment) => assignment?.shift && assignment.shift._id)
+        .map((assignment) => assignment.shift._id);
 
-      // Create a map for quick timesheet lookup
-      const timesheetMap = new Map(
-        timesheets.map((timesheet) => [timesheet.shift_.toString(), timesheet])
-      );
+      if (shiftIds.length === 0) {
+        Logger.warn(
+          `No valid shift IDs found in assignments for user: ${userId}`
+        );
+        return assignments.map((assignment) => ({
+          ...assignment,
+          timesheet: null,
+        }));
+      }
 
-      // Step 3: Combine assignments with timesheets
-      const assignmentsWithTimesheets = assignments.map((assignment) => ({
-        ...assignment,
-        timesheet: timesheetMap.get(assignment.shift._id.toString()) || null,
-      }));
+      try {
+        // Step 3: Fetch timesheets for valid shift IDs
+        const timesheets = await TimesheetModel.find({
+          shift_: { $in: shiftIds },
+          carer: userId,
+        }).lean();
 
-      return assignmentsWithTimesheets;
+        // Step 4: Combine assignments with timesheets, with proper null checks
+        const assignmentsWithTimesheets = assignments.map((assignment) => {
+          const shiftId = assignment?.shift?._id?.toString();
+          return {
+            ...assignment,
+            timesheet: timesheets.find(
+              (timesheet) => timesheet.shift_?.toString() === shiftId
+            ),
+          };
+        });
+
+        return assignmentsWithTimesheets;
+      } catch (timesheetError) {
+        // If timesheet fetch fails, return assignments without timesheets
+        Logger.error("Error fetching timesheets:", timesheetError);
+        return assignments.map((assignment) => ({
+          ...assignment,
+          timesheet: null,
+        }));
+      }
     } catch (error: any) {
       Logger.error("Error getting assignments for user:", error);
       throw new CustomError(
@@ -1833,7 +1859,6 @@ class ShiftService {
       );
     }
   }
-
   public async getAssignmentsForAShift(shiftId: string): Promise<any[]> {
     try {
       const assignments = await ShiftAssignmentModel.find({ shiftId })
