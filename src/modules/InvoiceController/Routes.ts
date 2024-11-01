@@ -1,10 +1,12 @@
 import { Router } from "express";
 import InvoiceController from "./InvoiceController";
-import AuthMiddleware from "src/middlewares/Auth";
 import PaymentMiddleware from "src/middlewares/Payment";
+import AuthMiddleware from "src/middlewares/AuthMiddleware";
 
 const InvoiceRouter: Router = Router();
 const _invoiceController = new InvoiceController();
+
+InvoiceRouter.use(AuthMiddleware.authenticateToken);
 
 /**
  * @name InvoiceController.createInvoice
@@ -12,12 +14,9 @@ const _invoiceController = new InvoiceController();
  * @route POST /api/v1/invoices
  * @access private
  */
-InvoiceRouter.route("/").post(
-  AuthMiddleware.isAuthenticatedUser,
-  PaymentMiddleware.checkAndSetSubscriptionStatus,
-  PaymentMiddleware.requireActiveSubscription,
-  _invoiceController.createInvoice
-);
+InvoiceRouter.route("/").post(_invoiceController.createInvoice);
+
+InvoiceRouter.route("/calculate").get(_invoiceController.calculateInvoice);
 
 /**
  * @name InvoiceController.getInvoices
@@ -25,10 +24,7 @@ InvoiceRouter.route("/").post(
  * @route GET /api/v1/invoices
  * @access private
  */
-InvoiceRouter.route("/").get(
-  AuthMiddleware.isAuthenticatedUser,
-  _invoiceController.getInvoices
-);
+InvoiceRouter.route("/").get(_invoiceController.getInvoices);
 
 /**
  * @name InvoiceController.getInvoiceById
@@ -36,10 +32,7 @@ InvoiceRouter.route("/").get(
  * @route GET /api/v1/invoices/:invoiceId
  * @access private
  */
-InvoiceRouter.route("/:invoiceId").get(
-  AuthMiddleware.isAuthenticatedUser,
-  _invoiceController.getInvoiceById
-);
+InvoiceRouter.route("/:invoiceId").get(_invoiceController.getInvoiceById);
 
 /**
  * @name InvoiceController.updateInvoiceStatus
@@ -48,7 +41,6 @@ InvoiceRouter.route("/:invoiceId").get(
  * @access private
  */
 InvoiceRouter.route("/:invoiceId/status").patch(
-  AuthMiddleware.isAuthenticatedUser,
   _invoiceController.updateInvoiceStatus
 );
 

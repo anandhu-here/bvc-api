@@ -30,6 +30,30 @@ const TimesheetSchema = new Schema<ITimesheet>(
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
+    // New invoice-related fields
+    invoiceStatus: {
+      type: String,
+      enum: ["pending_invoice", "invoiced", "paid", null],
+      default: null,
+    },
+    invoiceId: {
+      type: Types.ObjectId,
+      ref: "Invoice",
+      default: null,
+    },
+    invoicedAt: {
+      type: Date,
+      default: null,
+    },
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+    paymentReference: {
+      type: String,
+      default: null,
+    },
+    // Existing fields
     rating: {
       type: Number,
       min: 1,
@@ -50,7 +74,7 @@ const TimesheetSchema = new Schema<ITimesheet>(
       type: String,
       required: false,
     },
-    approvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    approvedBy: { type: Types.ObjectId, ref: "User" },
     tokenForQrCode: {
       type: String,
       required: false,
@@ -61,11 +85,35 @@ const TimesheetSchema = new Schema<ITimesheet>(
   }
 );
 
+// Add index for invoice-related queries
+TimesheetSchema.index({ invoiceStatus: 1, invoiceId: 1 });
+TimesheetSchema.index({ home: 1, invoiceStatus: 1 });
+TimesheetSchema.index({ agency: 1, invoiceStatus: 1 });
+
 TimesheetSchema.virtual("shift", {
   ref: "Shift",
   localField: "shiftId",
   foreignField: "_id",
   justOne: true,
+});
+
+// Add pre-save middleware to handle invoice status changes
+TimesheetSchema.pre("save", function (next) {
+  if (this.isModified("invoiceStatus")) {
+    switch (this.invoiceStatus) {
+      case "invoiced":
+        this.invoicedAt = new Date();
+        break;
+      case "paid":
+        this.paidAt = new Date();
+        break;
+      case "pending_invoice":
+      default:
+        // No additional action needed
+        break;
+    }
+  }
+  next();
 });
 
 const TimesheetModel = model<ITimesheet>("Timesheet", TimesheetSchema);

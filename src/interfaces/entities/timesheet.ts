@@ -15,4 +15,10 @@ export interface ITimesheet extends Document {
   requestType?: "manual" | "auto";
   documentUrl?: string;
   tokenForQrCode?: string;
+  // New invoice-related fields
+  invoiceStatus: "pending_invoice" | "invoiced" | "paid" | null;
+  invoiceId: ObjectId | null;
+  invoicedAt: Date | null;
+  paidAt: Date | null;
+  paymentReference: string | null;
 }
